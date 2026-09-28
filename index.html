@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 맞춤형 여행 플래너 만들기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans KR"', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#4F46E5', // Indigo-600
+                        secondary: '#9333EA', // Purple-600
+                        dark: '#111827',
+                        light: '#F3F4F6'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #f8fafc;
+            /* Subtle background pattern */
+            background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.4s ease-in-out;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c7c7cc; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+        
+        #toast {
+            visibility: hidden;
+            min-width: 250px;
+            margin-left: -125px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 16px;
+            position: fixed;
+            z-index: 50;
+            left: 50%;
+            bottom: 30px;
+            font-size: 17px;
+            opacity: 0;
+            transition: opacity 0.3s, bottom 0.3s;
+        }
+        #toast.show {
+            visibility: visible;
+            opacity: 1;
+            bottom: 50px;
+        }
+    </style>
+</head>
+<body class="text-gray-800 antialiased min-h-screen flex flex-col">
+
+    <header class="bg-gradient-to-r from-primary to-secondary text-white shadow-lg sticky top-0 z-40">
+        <div class="container mx-auto px-4 py-4 flex flex-col md:flex-row items-center justify-between">
+            <div class="flex items-center space-x-3 mb-4 md:mb-0">
+                <div class="bg-white text-primary rounded-full p-2 w-10 h-10 flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight">AI 플래너 마스터 클래스</h1>
+                    <p class="text-sm text-indigo-100">제미나이(Gemini) 에이전트 구축 실습 대시보드</p>
+                </div>
+            </div>
+            
+            <nav class="flex space-x-1 bg-white/20 p-1 rounded-lg">
+                <button onclick="switchTab('overview')" id="btn-overview" class="tab-btn px-4 py-2 rounded-md font-medium text-sm transition-colors bg-white text-primary shadow">
+                    <i class="fa-solid fa-map text-xs mr-1"></i> 수업개요
+                </button>
+                <button onclick="switchTab('agent')" id="btn-agent" class="tab-btn px-4 py-2 rounded-md font-medium text-sm transition-colors hover:bg-white/30 text-white">
+                    <i class="fa-solid fa-gears text-xs mr-1"></i> 에이전트 설정
+                </button>
+                <button onclick="switchTab('lab')" id="btn-lab" class="tab-btn px-4 py-2 rounded-md font-medium text-sm transition-colors hover:bg-white/30 text-white">
+                    <i class="fa-solid fa-flask text-xs mr-1"></i> 프롬프트 실험실
+                </button>
+                <button onclick="switchTab('mission')" id="btn-mission" class="tab-btn px-4 py-2 rounded-md font-medium text-sm transition-colors hover:bg-white/30 text-white">
+                    <i class="fa-solid fa-check-double text-xs mr-1"></i> 미션 체크
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="flex-grow container mx-auto px-4 py-8 max-w-6xl">
+        
+        <!-- Tab 1: Overview -->
+        <section id="tab-overview" class="tab-content active">
+            <div class="glass-panel rounded-2xl p-6 md:p-10">
+                <h2 class="text-3xl font-bold mb-6 border-b-2 border-indigo-100 pb-4 text-dark flex items-center">
+                    <i class="fa-solid fa-route text-primary mr-3"></i> 이번 수업의 목표
+                </h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <p class="text-lg mb-4 text-gray-700">
+                            단순히 검색만 하던 시대는 지났습니다. 이제 우리는 <strong>'나만의 규칙'</strong>을 가진 AI 에이전트를 직접 설계하여, 복잡한 여행 계획을 단 몇 초 만에 완성하는 크리에이터가 됩니다.
+                        </p>
+                        <div class="space-y-4 mt-6">
+                            <div class="flex items-start">
+                                <div class="bg-indigo-100 text-primary rounded-full w-8 h-8 flex items-center justify-center shrink-0 mt-1 font-bold">1</div>
+                                <div class="ml-4">
+                                    <h3 class="font-bold text-lg text-gray-800">1차시: 에이전트의 탄생</h3>
+                                    <p class="text-gray-600 text-sm mt-1">제미나이 'Gems' 기능을 활용하여 나만의 전속 여행 플래너의 성격과 작동 규칙(프롬프트)을 설계합니다.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start">
+                                <div class="bg-purple-100 text-secondary rounded-full w-8 h-8 flex items-center justify-center shrink-0 mt-1 font-bold">2</div>
+                                <div class="ml-4">
+                                    <h3 class="font-bold text-lg text-gray-800">2차시: 실전 시뮬레이션 및 시각화</h3>
+                                    <p class="text-gray-600 text-sm mt-1">할루시네이션(환각)을 제어하고, 돌발 변수에 대처하며, 최종 결과물을 스프레드시트로 도출합니다.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-6 border border-indigo-100">
+                        <h4 class="font-bold text-indigo-800 mb-3"><i class="fa-solid fa-lightbulb text-yellow-500 mr-2"></i> 실습 준비물</h4>
+                        <ul class="space-y-3 text-gray-700 text-sm">
+                            <li class="flex items-center"><i class="fa-regular fa-circle-check text-green-500 mr-2"></i> 구글 계정 로그인 완료</li>
+                            <li class="flex items-center"><i class="fa-regular fa-circle-check text-green-500 mr-2"></i> Gemini 접속 (gemini.google.com)</li>
+                            <li class="flex items-center"><i class="fa-regular fa-circle-check text-green-500 mr-2"></i> 열린 마음과 기획자의 상상력</li>
+                        </ul>
+                        <div class="mt-6 pt-6 border-t border-indigo-200 text-center">
+                            <a href="https://gemini.google.com" target="_blank" class="inline-block bg-primary hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 shadow-md">
+                                제미나이(Gemini) 열기 <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 2: Agent Setup -->
+        <section id="tab-agent" class="tab-content">
+            <div class="glass-panel rounded-2xl p-6 md:p-10">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b-2 border-purple-100 pb-4">
+                    <h2 class="text-3xl font-bold text-dark flex items-center">
+                        <i class="fa-solid fa-code text-secondary mr-3"></i> 시스템 프롬프트(안내) 설계도
+                    </h2>
+                    <span class="mt-2 md:mt-0 bg-purple-100 text-purple-800 text-xs font-bold px-3 py-1 rounded-full border border-purple-200">
+                        Gems '안내' 입력창 전용
+                    </span>
+                </div>
+                
+                <p class="text-gray-700 mb-6">
+                    아래의 템플릿을 복사하여 제미나이 'Gems' 설정의 <strong>[안내(Instructions)]</strong> 창에 붙여넣으세요. <br>
+                    <span class="text-red-500 text-sm font-bold">* 여러분의 취향에 맞게 [ ] 안의 내용을 꼭 수정하세요!</span>
+                </p>
+
+                <div class="relative bg-gray-900 rounded-xl overflow-hidden shadow-inner border border-gray-700 text-left">
+                    <div class="flex justify-between items-center px-4 py-2 bg-gray-800 border-b border-gray-700">
+                        <span class="text-gray-400 text-xs font-mono">system_prompt.md</span>
+                        <button onclick="copyToClipboard('prompt-text')" class="text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-xs font-bold transition">
+                            <i class="fa-regular fa-copy mr-1"></i> 복사하기
+                        </button>
+                    </div>
+                    <div class="p-5 overflow-x-auto">
+<pre id="prompt-text" class="text-green-400 font-mono text-sm leading-relaxed whitespace-pre-wrap"># 역할 (Role)
+너는 트렌드에 민감하고 효율적인 동선을 최우선으로 생각하는 10년 차 전문 여행 플래너야. 
+나의 요구사항을 받으면 완벽하고 실현 가능한 여행 일정을 기획해 줘.
+
+# 입력 변수 (Input)
+사용자가 아래 5가지 조건을 입력할 거야. 만약 부족한 정보가 있다면 먼저 질문해서 확인해 줘.
+- [여행지], [여행 기간], [참여 인원], [총예산], [원하는 테마/취향]
+
+# 작동 규칙 (Rules) - ★매우 중요★
+1. 최신 정보 반영: 반드시 구글 검색을 통해 2024년 현재 폐업하지 않고 운영 중인 식당/명소만 추천할 것.
+2. 동선 최적화: 구글 지도를 참고하여 장소 간 이동 시간이 비효율적이지 않게(지그재그 동선 금지) 구성할 것. 도보 또는 대중교통 이동 시간을 반드시 고려해.
+3. 예산 준수: 사용자가 제시한 예산을 초과하지 않도록 식비, 교통비, 입장료를 안배할 것.
+4. 현실성: 장소 간 이동 시간을 최소 30분 이상 여유 있게 잡을 것.
+
+# 출력 형식 (Output Format)
+사용자가 특별한 요구를 하지 않는 한, 전체 일정은 반드시 아래 형태의 Markdown 표(Table)로 정리해서 출력해 줘. (구글 스프레드시트로 내보내기 좋게 만들어야 해)
+
+| 일차 | 시간 | 장소명 | 이동 수단 및 소요 시간 | 예상 비용 | 꿀팁/비고 (영업시간 등) |
+|---|---|---|---|---|---|
+| 1일차 | 10:00 | OO역 도착 | - | - | - |
+| 1일차 | 11:30 | OO맛집 | 버스 (20분) | 15,000원 | 웨이팅 주의 |
+</pre>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 3: Prompt Lab -->
+        <section id="tab-lab" class="tab-content">
+            <div class="glass-panel rounded-2xl p-6 md:p-10">
+                <h2 class="text-3xl font-bold mb-2 text-dark flex items-center">
+                    <i class="fa-solid fa-flask-vial text-primary mr-3"></i> 프롬프트 실험실 (시뮬레이터)
+                </h2>
+                <p class="text-gray-600 mb-6 border-b-2 border-indigo-100 pb-4">여러분이 만든 에이전트가 어떻게 반응할지 미리 테스트해 보세요.</p>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- Input Form -->
+                    <div class="lg:col-span-1 bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                        <h3 class="font-bold text-lg mb-4 text-gray-800"><i class="fa-solid fa-keyboard mr-2 text-indigo-500"></i>조건 입력 (Input)</h3>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">여행지</label>
+                                <input type="text" id="sim-dest" value="부산" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">기간</label>
+                                <select id="sim-days" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="당일치기">당일치기</option>
+                                    <option value="1박 2일" selected>1박 2일</option>
+                                    <option value="2박 3일">2박 3일</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">인원 (명)</label>
+                                <input type="number" id="sim-people" value="4" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">1인 예산 (원)</label>
+                                <input type="text" id="sim-budget" value="150,000" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">여행 테마/특이사항</label>
+                                <textarea id="sim-theme" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm">대중교통만 이용, 사진 찍기 좋은 오션뷰 카페 필수</textarea>
+                            </div>
+                            <button onclick="simulateGeneration()" class="w-full bg-primary hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md transition-colors flex justify-center items-center">
+                                <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> 결과 시뮬레이션
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Output Area -->
+                    <div class="lg:col-span-2 bg-gray-50 p-5 rounded-xl border border-gray-200 shadow-inner flex flex-col h-full">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-lg text-gray-800"><i class="fa-solid fa-table mr-2 text-green-600"></i>AI 생성 결과 (미리보기)</h3>
+                            <button class="text-green-700 bg-green-100 hover:bg-green-200 px-3 py-1 rounded text-xs font-bold transition flex items-center border border-green-300" onclick="showToast('스프레드시트로 내보내기 아이콘은 실제 제미나이 화면 하단에 위치해 있습니다.')">
+                                <i class="fa-solid fa-file-excel mr-1"></i> 스프레드시트 내보내기 (모의)
+                            </button>
+                        </div>
+                        
+                        <!-- Loading State -->
+                        <div id="sim-loading" class="hidden flex-grow flex flex-col items-center justify-center text-gray-500 py-10">
+                            <i class="fa-solid fa-circle-notch fa-spin text-4xl text-primary mb-4"></i>
+                            <p>AI 에이전트가 최적의 동선을 계산 중입니다...</p>
+                        </div>
+
+                        <!-- Result State -->
+                        <div id="sim-result" class="overflow-x-auto bg-white border border-gray-200 rounded-lg shadow-sm flex-grow">
+                            <div class="p-8 text-center text-gray-400 flex flex-col items-center justify-center h-full">
+                                <i class="fa-regular fa-comment-dots text-5xl mb-3"></i>
+                                <p>좌측에서 조건을 입력하고 버튼을 누르면,<br>에이전트가 생성할 표의 예시가 이곳에 나타납니다.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 4: Mission Checklist -->
+        <section id="tab-mission" class="tab-content">
+            <div class="glass-panel rounded-2xl p-6 md:p-10">
+                <h2 class="text-3xl font-bold mb-6 border-b-2 border-indigo-100 pb-4 text-dark flex items-center">
+                    <i class="fa-solid fa-list-check text-secondary mr-3"></i> 나의 수업 미션 체크리스트
+                </h2>
+                
+                <p class="text-gray-600 mb-6">스스로 학습 진행 상황을 체크해 보세요. 모든 체크박스를 채우면 진정한 AI 기획자로 거듭납니다!</p>
+                
+                <div class="space-y-3 max-w-2xl mx-auto bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    
+                    <label class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition border border-transparent hover:border-gray-200">
+                        <input type="checkbox" class="w-6 h-6 text-primary rounded border-gray-300 focus:ring-primary accent-primary" onchange="checkProgress()">
+                        <span class="ml-3 text-lg font-medium text-gray-700">내 에이전트(Gems)에 멋진 이름과 역할 부여하기</span>
+                    </label>
+
+                    <label class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition border border-transparent hover:border-gray-200">
+                        <input type="checkbox" class="w-6 h-6 text-primary rounded border-gray-300 focus:ring-primary accent-primary" onchange="checkProgress()">
+                        <span class="ml-3 text-lg font-medium text-gray-700">제공된 시스템 프롬프트를 내 취향에 맞게 수정하여 저장하기</span>
+                    </label>
+
+                    <label class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition border border-transparent hover:border-gray-200">
+                        <input type="checkbox" class="w-6 h-6 text-primary rounded border-gray-300 focus:ring-primary accent-primary" onchange="checkProgress()">
+                        <span class="ml-3 text-lg font-medium text-gray-700">조건을 입력하여 첫 번째 여행 일정표(표 형태) 생성 성공하기</span>
+                    </label>
+
+                    <label class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition border border-transparent hover:border-gray-200">
+                        <input type="checkbox" class="w-6 h-6 text-primary rounded border-gray-300 focus:ring-primary accent-primary" onchange="checkProgress()">
+                        <span class="ml-3 text-lg font-medium text-gray-700"><span class="bg-yellow-100 text-yellow-800 px-1 text-sm rounded">중요</span> @Google Maps를 활용하여 AI의 동선/소요시간 팩트 체크하기</span>
+                    </label>
+                    
+                    <label class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition border border-transparent hover:border-gray-200">
+                        <input type="checkbox" class="w-6 h-6 text-primary rounded border-gray-300 focus:ring-primary accent-primary" onchange="checkProgress()">
+                        <span class="ml-3 text-lg font-medium text-gray-700">"비가 온다면?" 등 돌발 변수(Plan B) 프롬프트 입력해 보기</span>
+                    </label>
+
+                    <label class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition border border-transparent hover:border-gray-200">
+                        <input type="checkbox" class="w-6 h-6 text-primary rounded border-gray-300 focus:ring-primary accent-primary" onchange="checkProgress()">
+                        <span class="ml-3 text-lg font-medium text-gray-700">최종 결과물을 <strong>구글 스프레드시트</strong>로 내보내어 제출하기</span>
+                    </label>
+                </div>
+                
+                <div id="success-message" class="hidden mt-8 p-4 bg-green-100 text-green-800 rounded-lg text-center font-bold text-lg border border-green-200 animate-bounce">
+                    <i class="fa-solid fa-trophy text-yellow-500 mr-2 text-2xl"></i> 축하합니다! 완벽한 AI 여행 기획자로 거듭나셨습니다!
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-dark text-gray-400 text-center py-6 mt-auto">
+        <div class="container mx-auto px-4">
+            <p class="text-sm">본 대시보드는 제미나이(Gemini) 활용 교육 실습을 위해 제작되었습니다.</p>
+            <p class="text-xs mt-1">&copy; 2024 AI Education Class. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Custom Toast Message -->
+    <div id="toast">알림 메시지</div>
+
+    <script>
+        // Tab Switching Logic
+        function switchTab(tabId) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            // Reset all buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-white', 'text-primary', 'shadow');
+                btn.classList.add('text-white', 'hover:bg-white/30');
+            });
+            
+            // Show selected tab
+            document.getElementById('tab-' + tabId).classList.add('active');
+            
+            // Highlight selected button
+            const activeBtn = document.getElementById('btn-' + tabId);
+            activeBtn.classList.remove('text-white', 'hover:bg-white/30');
+            activeBtn.classList.add('bg-white', 'text-primary', 'shadow');
+        }
+
+        // Custom Toast Function (Replacing alert)
+        function showToast(message) {
+            const toast = document.getElementById("toast");
+            toast.innerText = message;
+            toast.className = "show";
+            setTimeout(function(){ 
+                toast.className = toast.className.replace("show", ""); 
+            }, 3000);
+        }
+
+        // Copy to Clipboard (Using execCommand as per rules)
+        function copyToClipboard(elementId) {
+            const textToCopy = document.getElementById(elementId).innerText;
+            
+            // Create a temporary textarea to hold the text
+            const tempTextArea = document.createElement("textarea");
+            tempTextArea.value = textToCopy;
+            document.body.appendChild(tempTextArea);
+            
+            // Select and copy
+            tempTextArea.select();
+            try {
+                document.execCommand("copy");
+                showToast("프롬프트가 클립보드에 복사되었습니다! 제미나이에 붙여넣으세요.");
+            } catch (err) {
+                showToast("복사에 실패했습니다. 직접 드래그해서 복사해주세요.");
+            }
+            
+            // Remove temporary element
+            document.body.removeChild(tempTextArea);
+        }
+
+        // Checklist Progress Logic
+        function checkProgress() {
+            const checkboxes = document.querySelectorAll('#tab-mission input[type="checkbox"]');
+            const total = checkboxes.length;
+            let checkedCount = 0;
+            
+            checkboxes.forEach(box => {
+                if(box.checked) checkedCount++;
+            });
+            
+            const successMsg = document.getElementById('success-message');
+            if(checkedCount === total) {
+                successMsg.classList.remove('hidden');
+            } else {
+                successMsg.classList.add('hidden');
+            }
+        }
+
+        // Simulator Generator Logic
+        function simulateGeneration() {
+            const dest = document.getElementById('sim-dest').value || '부산';
+            const people = document.getElementById('sim-people').value || '4';
+            
+            const loadingArea = document.getElementById('sim-loading');
+            const resultArea = document.getElementById('sim-result');
+            
+            // Show loading
+            resultArea.innerHTML = '';
+            resultArea.classList.add('hidden');
+            loadingArea.classList.remove('hidden');
+            
+            // Simulate API delay (1.5 seconds)
+            setTimeout(() => {
+                loadingArea.classList.add('hidden');
+                resultArea.classList.remove('hidden');
+                
+                // Generate mock HTML Table
+                const tableHTML = `
+                    <div class="p-4">
+                        <h4 class="font-bold text-lg mb-3 text-indigo-700">✨ [가상 결과] ${dest} 맞춤형 여행 일정표</h4>
+                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">일차</th>
+                                    <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">시간</th>
+                                    <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">장소명</th>
+                                    <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">이동수단/시간</th>
+                                    <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">예상비용(${people}인)</th>
+                                    <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">비고/꿀팁</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900">1일차</td>
+                                    <td class="px-4 py-3 whitespace-nowrap">10:00</td>
+                                    <td class="px-4 py-3">KTX ${dest}역 도착</td>
+                                    <td class="px-4 py-3 text-gray-500">-</td>
+                                    <td class="px-4 py-3 text-gray-500">-</td>
+                                    <td class="px-4 py-3 text-gray-500 text-xs">짐 보관소 이용</td>
+                                </tr>
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900">1일차</td>
+                                    <td class="px-4 py-3 whitespace-nowrap">11:30</td>
+                                    <td class="px-4 py-3 font-bold text-indigo-600">${dest} 현지인 추천 식당</td>
+                                    <td class="px-4 py-3 text-gray-500">버스 (30분)</td>
+                                    <td class="px-4 py-3 text-gray-500">40,000원</td>
+                                    <td class="px-4 py-3 text-gray-500 text-xs">점심시간 웨이팅 주의</td>
+                                </tr>
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900">1일차</td>
+                                    <td class="px-4 py-3 whitespace-nowrap">14:00</td>
+                                    <td class="px-4 py-3 font-bold text-indigo-600">오션뷰 인생샷 카페</td>
+                                    <td class="px-4 py-3 text-gray-500">도보 (15분)</td>
+                                    <td class="px-4 py-3 text-gray-500">28,000원</td>
+                                    <td class="px-4 py-3 text-gray-500 text-xs">루프탑 포토존 필수</td>
+                                </tr>
+                                <tr class="bg-yellow-50 hover:bg-yellow-100">
+                                    <td colspan="6" class="px-4 py-2 text-center text-xs text-yellow-700">
+                                        <i class="fa-solid fa-lightbulb"></i> AI 에이전트는 이런 형태의 Markdown 표를 생성하며, 우측 하단의 버튼을 통해 엑셀(스프레드시트)로 1초 만에 내보낼 수 있습니다.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                resultArea.innerHTML = tableHTML;
+            }, 1200);
+        }
+    </script>
+</body>
+</html>
